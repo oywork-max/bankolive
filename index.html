@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>송금대상액 & 환전 계산기</title>
+    <style>
+        :root {
+            --primary-color: #4a90e2;
+            --bg-color: #f5f7fa;
+            --card-bg: #ffffff;
+            --border-color: #e1e4e8;
+            --text-color: #333333;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 600px;
+            background: var(--card-bg);
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+
+        h1 {
+            text-align: center;
+            font-size: 24px;
+            margin-bottom: 20px;
+            color: #2c3e50;
+        }
+
+        /* 오늘의 송금액 입력 영역 */
+        .top-input-group {
+            margin-bottom: 25px;
+            background: #edf2f7;
+            padding: 15px;
+            border-radius: 8px;
+        }
+
+        .top-input-group label {
+            display: block;
+            font-weight: bold;
+            margin-bottom: 8px;
+            color: #4a5568;
+        }
+
+        .top-input-group input {
+            width: 100%;
+            padding: 12px;
+            font-size: 18px;
+            font-weight: bold;
+            border: 2px solid var(--border-color);
+            border-radius: 6px;
+            box-sizing: border-box;
+            text-align: right;
+        }
+
+        /* 탭 스타일 */
+        .tabs {
+            display: flex;
+            border-bottom: 2px solid var(--border-color);
+            margin-bottom: 20px;
+        }
+
+        .tab-button {
+            flex: 1;
+            padding: 12px;
+            background: none;
+            border: none;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            color: #718096;
+            transition: all 0.2s;
+        }
+
+        .tab-button.active {
+            color: var(--primary-color);
+            border-bottom: 3px solid var(--primary-color);
+            margin-bottom: -2px;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        /* 테이블 공통 스타일 */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+
+        th, td {
+            border: 1px solid var(--border-color);
+            padding: 10px;
+            text-align: center;
+        }
+
+        th {
+            background-color: #f8fafc;
+            font-weight: bold;
+        }
+
+        td.left { text-align: left; padding-left: 15px; }
+        td.right { text-align: right; padding-right: 15px; }
+
+        /* 수량 조절 컴포넌트 */
+        .qty-control {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .qty-btn {
+            width: 30px;
+            height: 30px;
+            background: #e2e8f0;
+            border: none;
+            border-radius: 4px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .qty-btn:hover { background: #cbd5e0; }
+
+        .qty-input {
+            width: 60px;
+            padding: 5px;
+            text-align: center;
+            font-size: 14px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+        }
+
+        /* 별도 결과창 (총액/차이) */
+        .summary-table {
+            margin-top: 20px;
+            background: #f7fafc;
+        }
+
+        .summary-table td {
+            font-weight: bold;
+            font-size: 16px;
+        }
+
+        .text-danger { color: #e53e3e; }
+        .text-success { color: #38a169; }
+
+        /* 대형 환전 합계 창 */
+        .exchange-total-box {
+            background: #ebf8ff;
+            border: 2px solid #bee3f8;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+            margin-top: 25px;
+            margin-bottom: 20px;
+        }
+
+        .exchange-total-box .title {
+            font-size: 16px;
+            color: #2b6cb0;
+            margin-bottom: 8px;
+            font-weight: bold;
+        }
+
+        .exchange-total-box .amount {
+            font-size: 32px;
+            font-weight: 900;
+            color: #2b6cb0;
+        }
+
+        /* 초기화 버튼 */
+        .reset-btn {
+            width: 100%;
+            padding: 12px;
+            background: #4a5568;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 8px;
+            transition: background 0.2s;
+        }
+
+        .reset-btn:hover {
+            background: #2d3748;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>송금 및 환전 계산기</h1>
+
+    <div class="top-input-group">
+        <label for="todayRemittance">오늘의 송금액</label>
+        <input type="text" id="todayRemittance" value="0" oninput="updateAll()">
+    </div>
+
+    <div class="tabs">
+        <button class="tab-button active" onclick="openTab(event, 'tab1')">1. 송금대상액</button>
+        <button class="tab-button" onclick="openTab(event, 'tab2')">2. 환전계산기</button>
+    </div>
+
+    <div id="tab1" class="tab-content active">
+        <table>
+            <thead>
+                <tr>
+                    <th style="width: 30%;">권종</th>
+                    <th style="width: 40%;">장수</th>
+                    <th style="width: 30%;">금액</th>
+                </tr>
+            </thead>
+            <tbody id="remittanceTableBody">
+                </tbody>
+        </table>
+
+        <table class="summary-table">
+            <tr>
+                <td style="width: 50%; background: #edf2f7;">총액</td>
+                <td id="remitTotal" class="right">0 원</td>
+            </tr>
+            <tr>
+                <td style="background: #edf2f7;">차이</td>
+                <td id="remitDiff" class="right">0 원</td>
+            </tr>
+        </table>
+
+        <button class="reset-btn" onclick="resetTab1()">🏠 초기화</button>
+    </div>
+
+    <div id="tab2" class="tab-content">
+        <table>
+            <thead>
+                <tr>
+                    <th>권종</th>
+                    <th>금액</th>
+                    <th>수량</th>
+                </tr>
+            </thead>
+            <tbody id="exchangeTableBody">
+                </tbody>
+        </table>
+
+        <div class="exchange-total-box">
+            <div class="title">총 환전 금액</div>
+            <div class="amount" id="exchangeTotalDisplay">0 원</div>
+        </div>
+
+        <button class="reset-btn" onclick="resetTab2()">🏠 초기화</button>
+    </div>
+</div>
+
+<script>
+    // 1번 탭 권종 목록 (10개 행)
+    const remitDenominations = [100000, 50000, 10000, 5000, 1000, 500, 100, 50, 10];
+    
+    // 2번 탭 권종 및 고정 수량 매핑 (8개 행)
+    const exchangeData = [
+        { denom: 50000, qty: 50000 },
+        { denom: 10000, qty: 10000 },
+        { denom: 5000,  qty: 5000 },
+        { denom: 1000,  qty: 1000 }, // 기본 1000개 설정 (버튼 제어 가능)
+        { denom: 500,   qty: 20000 },
+        { denom: 100,   qty: 5000 },
+        { denom: 50,    qty: 2500 },
+        { denom: 10,    qty: 500 }
+    ];
+
+    // 초기 로드 실행
+    window.onload = function() {
+        initRemittanceTable();
+        initExchangeTable();
+        setupFormatEvent();
+        updateAll();
+    };
+
+    // 탭 전환 함수
+    function openTab(evt, tabId) {
+        const tabContents = document.getElementsByClassName("tab-content");
+        for (let i = 0; i < tabContents.length; i++) {
+            tabContents[i].classList.remove("active");
+        }
+        const tabButtons = document.getElementsByClassName("tab-button");
+        for (let i = 0; i < tabButtons.length; i++) {
+            tabButtons[i].classList.remove("active");
+        }
+        document.getElementById(tabId).classList.add("active");
+        evt.currentTarget.classList.add("active");
+    }
+
+    // 콤마 포맷터 함수
+    function formatNumber(num) {
+        return num.toLocaleString('ko-KR');
+    }
+
+    function parseNumber(str) {
+        const clean = str.replace(/,/g, '');
+        return isNaN(clean) || clean === '' ? 0 : parseInt(clean, 10);
+    }
+
+    // 오늘의 송금액 콤마 이벤트 바인딩
+    function setupFormatEvent() {
+        const input = document.getElementById('todayRemittance');
+        input.addEventListener('focus', function() {
+            if(this.value === '0') this.value = '';
+        });
+        input.addEventListener('blur', function() {
+            if(this.value === '') this.value = '0';
+        });
+        input.addEventListener('keyup', function(e) {
+            let num = parseNumber(this.value);
+            this.value = formatNumber(num);
+        });
+    }
+
+    // 1번 탭 테이블 초기화 생성
+    function initRemittanceTable() {
+        const tbody = document.getElementById('remittanceTableBody');
+        tbody.innerHTML = '';
+        
+        remitDenominations.forEach((denom, index) => {
+            const tr = document.createElement('tr');
+            
+            // 1열: 권종명
+            const tdDenom = document.createElement('td');
+            tdDenom.className = 'left';
+            tdDenom.innerText = denom >= 1000 ? formatNumber(denom) + "원" : denom + "원";
+            
+            // 2열: 장수 제어 ( - 입력창 + )
+            const tdQty = document.createElement('td');
+            tdQty.innerHTML = `
+                <div class="qty-control">
+                    <button class="qty-btn" onclick="changeRemitQty(${index}, -1)">-</button>
+                    <input type="number" class="qty-input remit-idx-input" id="remitQty_${index}" value="0" min="0" oninput="updateAll()" onkeydown="handleEnter(event, ${index})">
+                    <button class="qty-btn" onclick="changeRemitQty(${index}, 1)">+</button>
+                </div>
+            `;
+            
+            // 3열: 금액 계산칸
+            const tdAmount = document.createElement('td');
+            tdAmount.className = 'right';
+            tdAmount.id = `remitAmt_${index}`;
+            tdAmount.innerText = "0";
+
+            tr.appendChild(tdDenom);
+            tr.appendChild(tdQty);
+            tr.appendChild(tdAmount);
+            tbody.appendChild(tr);
+        });
+    }
+
+    // 1번 탭 엔터키 누르면 아래 행으로 포커스 이동
+    function handleEnter(event, currentIndex) {
+        if (event.key === 'Enter') {
+            event.preventDefault();
+            const nextInput = document.getElementById(`remitQty_${currentIndex + 1}`);
+            if (nextInput) {
+                nextInput.focus();
+                nextInput.select();
+            } else {
+                document.getElementById('todayRemittance').focus(); // 마지막 행이면 상단으로 포커스
+            }
+        }
+    }
+
+    // 1번 탭 버튼 증감
+    function changeRemitQty(index, val) {
+        const input = document.getElementById(`remitQty_${index}`);
+        let current = parseInt(input.value, 10) || 0;
+        current += val;
+        if (current < 0) current = 0;
+        input.value = current;
+        updateAll();
+    }
+
+    // 2번 탭 테이블 초기화 생성
+    function initExchangeTable() {
+        const tbody = document.getElementById('exchangeTableBody');
+        tbody.innerHTML = '';
+
+        exchangeData.forEach((item, index) => {
+            const tr = document.createElement('tr');
+            
+            // 1열: 권종
+            const tdDenom = document.createElement('td');
+            tdDenom.className = 'left';
+            tdDenom.innerText = item.denom >= 1000 ? formatNumber(item.denom) + "원" : item.denom + "원";
+
+            // 2열: 금액 (수량 * 권종)
+            const tdAmount = document.createElement('td');
+            tdAmount.className = 'right';
+            tdAmount.id = `exAmt_${index}`;
+            tdAmount.innerText = "0";
+
+            // 3열: 수량 (1천원권만 수량 조절 버튼 추가, 나머지는 고정 텍스트 기재)
+            const tdQty = document.createElement('td');
+            if (item.denom === 1000) {
+                tdQty.innerHTML = `
+                    <div class="qty-control">
+                        <button class="qty-btn" onclick="changeExThousand(-10)">-</button>
+                        <span id="exQtyText_${index}" style="font-weight:bold; width:60px; display:inline-block;">${formatNumber(item.qty)}</span>
+                        <button class="qty-btn" onclick="changeExThousand(10)">+</button>
+                    </div>
+                `;
+            } else {
+                tdQty.innerHTML = `<span id="exQtyText_${index}">${formatNumber(item.qty)}</span>`;
+            }
+
+            tr.appendChild(tdDenom);
+            tr.appendChild(tdAmount);
+            tr.appendChild(tdQty);
+            tbody.appendChild(tr);
+        });
+    }
+
+    // 2번 탭 1천원권 10장 단위 조절 버튼
+    function changeExThousand(val) {
+        // exchangeData에서 1천원 인덱스 찾기 (3번째 인덱스)
+        const idx = exchangeData.findIndex(item => item.denom === 1000);
+        if(idx !== -1) {
+            let currentQty = exchangeData[idx].qty;
+            currentQty += val;
+            if(currentQty < 0) currentQty = 0;
+            exchangeData[idx].qty = currentQty;
+            
+            // 화면 텍스트 업데이트
+            document.getElementById(`exQtyText_${idx}`).innerText = formatNumber(currentQty);
+            updateAll();
+        }
+    }
+
+    // 전체 실시간 연산 및 동기화 처리 함수
+    function updateAll() {
+        const todayRemitVal = parseNumber(document.getElementById('todayRemittance').value);
+
+        // --- 1번 탭 연산 ---
+        let remitTotal = 0;
+        remitDenominations.forEach((denom, index) => {
+            const qtyInput = document.getElementById(`remitQty_${index}`);
+            const qty = qtyInput ? (parseInt(qtyInput.value, 10) || 0) : 0;
+            const lineAmount = denom * qty;
+            remitTotal += lineAmount;
+
+            const amtTd = document.getElementById(`remitAmt_${index}`);
+            if(amtTd) amtTd.innerText = formatNumber(lineAmount);
+        });
+
+        // 총액 및 차이 대입
+        document.getElementById('remitTotal').innerText = formatNumber(remitTotal) + " 원";
+        const diff = remitTotal - todayRemitVal;
+        const diffTd = document.getElementById('remitDiff');
+        
+        if (diff === 0) {
+            diffTd.className = "right";
+            diffTd.innerText = "0 원";
+        } else if (diff > 0) {
+            diffTd.className = "right text-success";
+            diffTd.innerText = "+" + formatNumber(diff) + " 원";
+        } else {
+            diffTd.className = "right text-danger";
+            diffTd.innerText = formatNumber(diff) + " 원";
+        }
+
+        // --- 2번 탭 연산 ---
+        let exchangeTotal = 0;
+        exchangeData.forEach((item, index) => {
+            const lineAmount = item.denom * item.qty;
+            exchangeTotal += lineAmount;
+
+            const amtTd = document.getElementById(`exAmt_${index}`);
+            if(amtTd) amtTd.innerText = formatNumber(lineAmount);
+        });
+
+        // 대형 화면 출력 총 환전 금액
+        document.getElementById('exchangeTotalDisplay').innerText = formatNumber(exchangeTotal) + " 원";
+    }
+
+    // 1번 탭 초기화
+    function resetTab1() {
+        remitDenominations.forEach((_, index) => {
+            const input = document.getElementById(`remitQty_${index}`);
+            if(input) input.value = 0;
+        });
+        updateAll();
+    }
+
+    // 2번 탭 초기화 (초기 요구사항 기재값으로 회귀)
+    function resetTab2() {
+        exchangeData[0].qty = 50000;
+        exchangeData[1].qty = 10000;
+        exchangeData[2].qty = 5000;
+        exchangeData[3].qty = 1000; // 1천원권 디폴트 세팅값 복구
+        exchangeData[4].qty = 20000;
+        exchangeData[5].qty = 5000;
+        exchangeData[6].qty = 2500;
+        exchangeData[7].qty = 500;
+
+        // 1천원권 레이블 텍스트 갱신 유도
+        const idx = exchangeData.findIndex(item => item.denom === 1000);
+        if(idx !== -1) {
+            document.getElementById(`exQtyText_${idx}`).innerText = formatNumber(exchangeData[idx].qty);
+        }
+        updateAll();
+    }
+</script>
+
+</body>
+</html>
